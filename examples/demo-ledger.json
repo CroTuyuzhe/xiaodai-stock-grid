@@ -1,0 +1,301 @@
+{
+  "version": 1,
+  "revision": 0,
+  "isDemo": true,
+  "createdAt": "2026-11-16T06:48:37.917Z",
+  "updatedAt": "2026-11-16T06:48:37.947Z",
+  "stocks": [
+    {
+      "id": "demo-stock-1",
+      "symbol": "DEMO01",
+      "name": "示例科技",
+      "quote": "10.6",
+      "quoteAt": "2026-11-16T15:00",
+      "grid": {
+        "mode": "arithmetic",
+        "anchor": "10",
+        "step": "0.5",
+        "count": 4,
+        "quantity": "100",
+        "levels": [
+          {
+            "id": "sell-4",
+            "label": "卖出 4 档",
+            "side": "sell",
+            "price": "12",
+            "quantity": "100"
+          },
+          {
+            "id": "sell-3",
+            "label": "卖出 3 档",
+            "side": "sell",
+            "price": "11.5",
+            "quantity": "100"
+          },
+          {
+            "id": "sell-2",
+            "label": "卖出 2 档",
+            "side": "sell",
+            "price": "11",
+            "quantity": "100"
+          },
+          {
+            "id": "sell-1",
+            "label": "卖出 1 档",
+            "side": "sell",
+            "price": "10.5",
+            "quantity": "100"
+          },
+          {
+            "id": "center",
+            "label": "基准档",
+            "side": "center",
+            "price": "10",
+            "quantity": "100"
+          },
+          {
+            "id": "buy-1",
+            "label": "买入 1 档",
+            "side": "buy",
+            "price": "9.5",
+            "quantity": "100"
+          },
+          {
+            "id": "buy-2",
+            "label": "买入 2 档",
+            "side": "buy",
+            "price": "9",
+            "quantity": "100"
+          },
+          {
+            "id": "buy-3",
+            "label": "买入 3 档",
+            "side": "buy",
+            "price": "8.5",
+            "quantity": "100"
+          },
+          {
+            "id": "buy-4",
+            "label": "买入 4 档",
+            "side": "buy",
+            "price": "8",
+            "quantity": "100"
+          }
+        ]
+      }
+    },
+    {
+      "id": "demo-stock-2",
+      "symbol": "DEMO02",
+      "name": "示例红利 ETF",
+      "quote": "3.15",
+      "quoteAt": "2026-11-16T15:00",
+      "grid": {
+        "mode": "arithmetic",
+        "anchor": "3.2",
+        "step": "0.1",
+        "count": 4,
+        "quantity": "1000",
+        "levels": [
+          {
+            "id": "sell-4",
+            "label": "卖出 4 档",
+            "side": "sell",
+            "price": "3.6",
+            "quantity": "1000"
+          },
+          {
+            "id": "sell-3",
+            "label": "卖出 3 档",
+            "side": "sell",
+            "price": "3.5",
+            "quantity": "1000"
+          },
+          {
+            "id": "sell-2",
+            "label": "卖出 2 档",
+            "side": "sell",
+            "price": "3.4",
+            "quantity": "1000"
+          },
+          {
+            "id": "sell-1",
+            "label": "卖出 1 档",
+            "side": "sell",
+            "price": "3.3",
+            "quantity": "1000"
+          },
+          {
+            "id": "center",
+            "label": "基准档",
+            "side": "center",
+            "price": "3.2",
+            "quantity": "1000"
+          },
+          {
+            "id": "buy-1",
+            "label": "买入 1 档",
+            "side": "buy",
+            "price": "3.1",
+            "quantity": "1000"
+          },
+          {
+            "id": "buy-2",
+            "label": "买入 2 档",
+            "side": "buy",
+            "price": "3",
+            "quantity": "1000"
+          },
+          {
+            "id": "buy-3",
+            "label": "买入 3 档",
+            "side": "buy",
+            "price": "2.9",
+            "quantity": "1000"
+          },
+          {
+            "id": "buy-4",
+            "label": "买入 4 档",
+            "side": "buy",
+            "price": "2.8",
+            "quantity": "1000"
+          }
+        ]
+      }
+    }
+  ],
+  "trades": [
+    {
+      "id": "demo-buy-1",
+      "seq": 1,
+      "stockId": "demo-stock-1",
+      "type": "buy",
+      "date": "2026-10-12T10:00",
+      "price": "10",
+      "quantity": "1000",
+      "fee": "5",
+      "tax": "0",
+      "otherFee": "0",
+      "gridLevel": "",
+      "buyTradeId": "",
+      "note": "虚拟演示成交"
+    },
+    {
+      "id": "demo-buy-2",
+      "seq": 2,
+      "stockId": "demo-stock-2",
+      "type": "buy",
+      "date": "2026-10-13T10:00",
+      "price": "3.1",
+      "quantity": "2000",
+      "fee": "5",
+      "tax": "0",
+      "otherFee": "0",
+      "gridLevel": "buy-1",
+      "buyTradeId": "",
+      "note": "虚拟演示成交"
+    },
+    {
+      "id": "demo-sell-1",
+      "seq": 3,
+      "stockId": "demo-stock-1",
+      "type": "sell",
+      "date": "2026-10-16T10:00",
+      "price": "10.5",
+      "quantity": "200",
+      "fee": "5",
+      "tax": "1.05",
+      "otherFee": "0",
+      "gridLevel": "sell-1",
+      "buyTradeId": "demo-buy-1",
+      "note": "虚拟演示成交"
+    },
+    {
+      "id": "demo-buy-3",
+      "seq": 4,
+      "stockId": "demo-stock-1",
+      "type": "buy",
+      "date": "2026-10-20T10:00",
+      "price": "9.5",
+      "quantity": "100",
+      "fee": "5",
+      "tax": "0",
+      "otherFee": "0",
+      "gridLevel": "buy-1",
+      "buyTradeId": "",
+      "note": "虚拟演示成交"
+    },
+    {
+      "id": "demo-sell-2",
+      "seq": 5,
+      "stockId": "demo-stock-1",
+      "type": "sell",
+      "date": "2026-10-24T10:00",
+      "price": "10",
+      "quantity": "100",
+      "fee": "5",
+      "tax": "0.5",
+      "otherFee": "0",
+      "gridLevel": "center",
+      "buyTradeId": "demo-buy-3",
+      "note": "虚拟演示成交"
+    },
+    {
+      "id": "demo-sell-3",
+      "seq": 6,
+      "stockId": "demo-stock-2",
+      "type": "sell",
+      "date": "2026-10-28T10:00",
+      "price": "3.3",
+      "quantity": "1000",
+      "fee": "5",
+      "tax": "0",
+      "otherFee": "0",
+      "gridLevel": "sell-1",
+      "buyTradeId": "demo-buy-2",
+      "note": "虚拟演示成交"
+    },
+    {
+      "id": "demo-buy-4",
+      "seq": 7,
+      "stockId": "demo-stock-1",
+      "type": "buy",
+      "date": "2026-11-03T10:00",
+      "price": "9.5",
+      "quantity": "200",
+      "fee": "5",
+      "tax": "0",
+      "otherFee": "0",
+      "gridLevel": "buy-1",
+      "buyTradeId": "",
+      "note": "虚拟演示成交"
+    },
+    {
+      "id": "demo-dividend-1",
+      "seq": 8,
+      "stockId": "demo-stock-2",
+      "type": "dividend",
+      "date": "2026-11-06T09:30",
+      "amount": "80",
+      "fee": "0",
+      "tax": "8",
+      "otherFee": "0",
+      "note": "虚拟演示分红"
+    },
+    {
+      "id": "demo-sell-4",
+      "seq": 9,
+      "stockId": "demo-stock-1",
+      "type": "sell",
+      "date": "2026-11-10T10:00",
+      "price": "10.5",
+      "quantity": "100",
+      "fee": "5",
+      "tax": "0.53",
+      "otherFee": "0",
+      "gridLevel": "sell-1",
+      "buyTradeId": "demo-buy-4",
+      "note": "虚拟演示成交"
+    }
+  ]
+}

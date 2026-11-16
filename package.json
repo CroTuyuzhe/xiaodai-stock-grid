@@ -1,0 +1,25 @@
+{
+  "name": "xiaodai-stock-grid",
+  "version": "1.2.1",
+  "description": "小呆网格 - 人民币股票网格交易记账软件",
+  "main": "main.cjs",
+  "author": "Xiaodai",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/engine.test.cjs tests/storage.test.cjs tests/quotes.test.cjs",
+    "test:ui": "node scripts/ui-smoke.cjs",
+    "package": "node scripts/package.cjs",
+    "test:quotes-ui": "node scripts/quote-ui-smoke.cjs",
+    "test:visual": "node scripts/visual-smoke.cjs",
+    "test:delete-ui": "node scripts/delete-stock-ui.cjs"
+  },
+  "dependencies": {
+    "decimal.js": "10.6.0"
+  },
+  "devDependencies": {
+    "electron": "45.3.1",
+    "@electron/packager": "20.3.0",
+    "@playwright/test": "1.65.0"
+  }
+}
