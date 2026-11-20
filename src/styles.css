@@ -2124,3 +2124,22 @@ dialog::backdrop { background: #263b5c55; }
 .stock-manage-actions .danger-text { color: #ad3c4d; }
 .stock-delete-footer { margin-right: auto; }
 .grid-ladder > .panel-head { flex-wrap: wrap; }
+
+/* Automatic quotes share the existing light, readable workspace. */
+.market-section { margin-bottom: 20px; }
+.market-section .market-bar { margin-bottom: 0; border-radius: 12px 12px 0 0; }
+.auto-market { padding: 16px 20px; background: #fff; border: 1px solid #dce5f1; border-top: 0; border-radius: 0 0 12px 12px; }
+.auto-market-controls, .auto-market-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.auto-toggle { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 15px; }
+.auto-toggle input { position: absolute; width: 44px; height: 26px; opacity: 0; cursor: pointer; z-index: 1; margin: 0; left: 0; top: 50%; transform: translateY(-50%); }
+.auto-switch { width: 44px; height: 26px; border-radius: 16px; background: #a9b7cb; padding: 3px; transition: background .15s; }
+.auto-switch::after { content: ''; display: block; width: 20px; height: 20px; border-radius: 50%; background: white; transition: transform .15s; }
+.auto-toggle input:checked + .auto-switch { background: #2468df; }
+.auto-toggle input:checked + .auto-switch::after { transform: translateX(18px); }
+.auto-toggle input:focus-visible + .auto-switch { outline: 3px solid #a6c5ff; outline-offset: 3px; }
+.auto-toggle input:disabled + .auto-switch { opacity: .55; }
+.auto-market-status { margin: 10px 0; font-size: 14px; line-height: 1.7; color: #4b607b; overflow-wrap: anywhere; }
+.auto-market-foot { justify-content: space-between; }
+.auto-market-foot small { font-size: 13px; color: #62758e; }
+.auto-market-warning { background: #fff8ec; border-color: #edce96; }
+.auto-market-warning .auto-market-status { color: #895314; }

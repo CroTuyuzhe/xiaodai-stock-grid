@@ -27,3 +27,5 @@ coverage/
 /ledger*.csv
 Thumbs.db
 Desktop.ini
+
+/market-preferences.json

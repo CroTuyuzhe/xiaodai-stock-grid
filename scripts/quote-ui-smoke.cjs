@@ -91,5 +91,8 @@ const Q=require('../src/quote-model.js');
     assert.equal(errors.length,0,errors.join('\n'));
     console.log('PASS: real 512480 lookup/name/three-decimal quote, default-grid seeding, single/all manual refresh, no startup polling, provider time/source persistence, offline preservation, stale-date labeling, narrow layout, restart.');
     console.log(JSON.stringify({testedAt:new Date().toISOString(),symbol:persisted.symbol,name:persisted.quoteMeta.name,price:persisted.quote,source:persisted.quoteMeta.source,marketAt:persisted.quoteMeta.marketAt}));
+  }catch(error){
+    const ledger=fs.existsSync(path.join(directory,'ledger.json'))?read():null;
+    console.error('Isolated quote test diagnostics:',JSON.stringify({summary:ledger?.quoteRefresh,quoteMeta:ledger?.stocks?.[0]?.quoteMeta,failures:page?await page.locator('.quote-failures').allTextContents():[],errors}));throw error;
   }finally{if(app)await app.close();fs.rmSync(directory,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exit(1);});

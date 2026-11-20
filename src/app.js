@@ -39,6 +39,7 @@ const ICONS = {
 const icon = (name,extra='') => `<svg class="icon ${extra}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]||ICONS.info}</svg>`;
 let state, dataDirectory='', page='overview', selectedStock='', saving=false, modalKind='', toastTimer;
 let quoteBusy=false,draftQuote=null;
+let marketStatus={autoEnabled:false,failures:0,nextAllowedAt:0,restriction:null},autoLoop=null,lastRestrictionNotice='';
 let filters={stock:'',type:'',query:'',from:'',to:''};
 function blankState() { return {version:1,revision:0,isDemo:false,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),stocks:[],trades:[]}; }
 function demoState() {
@@ -100,36 +101,78 @@ function quoteInfo(stock,full=false){
   const old=meta.marketAt.slice(0,10)!==localNow().slice(0,10);
   return `${Q.SOURCES[meta.source]||'接口行情'} · ${shortDate(full?meta.marketAt:meta.marketAt.slice(5))}${old?' · 非今日行情':''}`;
 }
+function marketTime(time){return new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(time));}
+function autoDescription(){
+  if(marketStatus.error)return marketStatus.error;
+  const r=marketStatus.restriction;
+  if(r)return `${Q.SOURCES[r.source]} ${r.statusCode===429?'请求过于频繁':'拒绝访问'}（HTTP ${r.statusCode}）。查询已暂停；${marketTime(r.resumeAfter)} 后可手动恢复。原参考价已保留。`;
+  if(!marketStatus.autoEnabled)return '默认关闭；开启后仅在北京时间 9:30–11:30、13:00–15:00 随机每 60–90 秒更新。';
+  if(state.isDemo||!state.stocks.some(s=>supportedStock(s)))return '等待添加真实 A 股或场内 ETF 代码；演示代码不请求行情。';
+  const next=autoLoop?.nextAt||marketStatus.nextAllowedAt;
+  if(autoLoop?.running)return '正在自动获取行情，原参考价保留到成功返回。';
+  const prefix=!AutoQuotes.isTradingTime(Date.now())?'当前不在更新时段，等待下个周一至周五时段':marketStatus.failures?`连续 ${marketStatus.failures} 轮未完整成功，已降低更新频率`:'每轮随机间隔 60–90 秒，合并查询股票';
+  return `${prefix}${next?`；下次预计 ${marketTime(next)}`:''}（北京时间）。`;
+}
+function autoMarkup(){
+  const restricted=!!marketStatus.restriction;
+  return `<div class="auto-market ${restricted||marketStatus.error?'auto-market-warning':''}" data-auto-market>
+    <div class="auto-market-controls"><label class="auto-toggle"><input type="checkbox" role="switch" aria-label="自动更新行情" data-change="auto-quotes" ${marketStatus.autoEnabled?'checked':''} ${marketStatus.error||quoteBusy?'disabled':''}><span class="auto-switch" aria-hidden="true"></span><strong>自动更新行情</strong></label><span class="tag neutral">60–90 秒 · 随机间隔</span></div>
+    <p class="auto-market-status" role="status">${esc(autoDescription())}</p>
+    <div class="auto-market-foot"><small>周一至周五指定时段（暂未识别节假日） · 失败降频 · 受限暂停 · 退出后停止</small>${restricted?'<button class="btn small" data-action="resume-market">冷却后恢复查询</button>':''}</div>
+  </div>`;
+}
+function renderAutoStatus(){for(const el of $$('[data-auto-market]'))el.outerHTML=autoMarkup();}
+function restrictionMessage(){
+  const r=marketStatus.restriction;if(!r)return;
+  openModal({title:'行情接口访问受限',subtitle:`${Q.SOURCES[r.source]} · HTTP ${r.statusCode}`,body:`<p class="confirm-message">${esc(autoDescription())}</p><p class="muted">自动更新和手动查询均已暂停，不会立即切换备用来源继续重试。重启软件或切换开关会保留此冷却记录。交易记账、成本与利润计算仍可使用。</p><p class="muted">冷却结束后，在行情栏点击“冷却后恢复查询”。HTTP 403 只表示本次访问被拒绝，不代表已确认永久封禁。</p>`,buttons:'<button type="button" class="btn primary" data-action="close-modal">知道了</button>'});
+}
+function acceptMarketStatus(next,alert=false){
+  if(!next)return;
+  marketStatus=next;autoLoop?.sync();renderAutoStatus();
+  const key=next.restriction?`${next.restriction.source}-${next.restriction.detectedAt}`:'';
+  if(alert&&key&&key!==lastRestrictionNotice){
+    lastRestrictionNotice=key;
+    if(!$('#main-dialog'))restrictionMessage();else notify('行情接口访问受限，已暂停查询；请查看行情栏提示。',true);
+  }
+}
 function quoteBar(){
-  if(!canFetchQuotes()||state.isDemo||!['overview','grids','settings'].includes(page))return '';
+  if(!canFetchQuotes()||(!['overview','grids','settings'].includes(page)&&!marketStatus.restriction&&!marketStatus.error))return '';
   const summary=state.quoteRefresh,eligible=state.stocks.filter(s=>supportedStock(s)).length;
   const date=summary?.requestedAt?new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(summary.requestedAt)):'';
   const today=date.slice(0,10)===localNow().slice(0,10);
   const status=quoteBusy?'正在按股票代码获取报价，原参考价会保留到成功返回。':summary?`${today?'今日最近请求':'最近请求'} ${date} · 更新 ${summary.updatedCount} 只${summary.failedCount?` · ${summary.failedCount} 只保留原价`:''}`:`今日尚未刷新 · ${eligible} 只可查询证券`;
-  return `<div class="market-bar"><div>${icon('cycle',quoteBusy?'spinning':'')}<span><strong>免费 A 股行情 · 手动更新</strong><small>${esc(status)}</small></span></div><span class="market-bar-note">腾讯行情优先 · 新浪备用 · 无需 API Key</span></div>`;
+  return `<section class="market-section"><div class="market-bar"><div>${icon('cycle',quoteBusy?'spinning':'')}<span><strong>免费 A 股行情 · ${marketStatus.autoEnabled?'自动更新已开启':'手动更新'}</strong><small>${esc(status)}</small></span></div><span class="market-bar-note">腾讯行情优先 · 新浪备用 · 无需 API Key</span></div>${autoMarkup()}</section>`;
 }
 function setQuoteBusy(busy){
-  quoteBusy=busy;
+  quoteBusy=busy;renderAutoStatus();
   for(const b of $$('[data-action="refresh-all"],[data-action="refresh-one"],[data-action="lookup-symbol"]')){
     if(busy){b.dataset.previousHtml=b.innerHTML;b.innerHTML=icon('cycle','spinning')+'正在获取行情…';b.disabled=true;}
     else{b.disabled=false;if(b.dataset.previousHtml){b.innerHTML=b.dataset.previousHtml;delete b.dataset.previousHtml;}}
   }
 }
-async function refreshQuotes(stockId=''){
+async function refreshQuotes(stockId='',automatic=false){
   if(!canFetchQuotes())throw new Error('请使用桌面版的行情更新功能');
   const requested=state.stocks.filter(s=>(!stockId||s.id===stockId)&&supportedStock(s)).map(s=>({id:s.id,symbol:s.symbol}));
   if(!requested.length)throw new Error('请先添加 6 位 A 股或场内 ETF 代码，例如 512480；虚拟示例代码无法查询');
   const unsupported=stockId?[]:state.stocks.filter(s=>!supportedStock(s));
   setQuoteBusy(true);
   try{
-    const response=await desktop.quotes(requested.map(s=>s.symbol));
+    const response=await desktop.quotes(requested.map(s=>s.symbol),{automatic});
+    acceptMarketStatus(response.market,!!response.restricted);
+    if(response.deferred||response.restricted&&!response.results.length){
+      if(!automatic&&!response.restricted)notify(`${response.reason||'请稍候'}${response.market?.nextAllowedAt?`，预计 ${marketTime(response.market.nextAllowedAt)}`:''}`);
+      return;
+    }
     const applied=Q.applyResults(state,requested,response.results);
     const failures=[...applied.failed,...unsupported.map(s=>({symbol:s.symbol,message:'代码不在支持范围，保留原价'}))];
     applied.state.quoteRefresh={requestedAt:response.requestedAt,updatedCount:applied.updated.length,failedCount:failures.length};
     await commit(applied.state);
     const stale=applied.updated.filter(s=>s.quote.marketAt.slice(0,10)!==localNow().slice(0,10));
-    notify(`行情更新 ${applied.updated.length} 只${failures.length?`，${failures.length} 只保留原价`:''}${stale.length?`；${stale.length} 只为非今日行情`:''}`,!applied.updated.length);
-    if(failures.length)openModal({title:'行情更新结果',subtitle:`更新 ${applied.updated.length} 只 · ${failures.length} 只保留原价`,body:`<p class="muted">未取得有效价格的股票会继续使用原参考价，没有按 0 元计入持仓。</p><div class="quote-failures">${failures.map(f=>`<div><strong>${esc(f.symbol)}</strong><span>${esc(f.message)}</span></div>`).join('')}</div>`,buttons:'<button type="button" class="btn primary" data-action="close-modal">知道了</button>'});
+    if(!automatic)notify(`行情更新 ${applied.updated.length} 只${failures.length?`，${failures.length} 只保留原价`:''}${stale.length?`；${stale.length} 只为非今日行情`:''}`,!applied.updated.length);
+    if(failures.length&&!automatic&&!response.restricted)openModal({title:'行情更新结果',subtitle:`更新 ${applied.updated.length} 只 · ${failures.length} 只保留原价`,body:`<p class="muted">未取得有效价格的股票会继续使用原参考价，没有按 0 元计入持仓。</p><div class="quote-failures">${failures.map(f=>`<div><strong>${esc(f.symbol)}</strong><span>${esc(f.message)}</span></div>`).join('')}</div>`,buttons:'<button type="button" class="btn primary" data-action="close-modal">知道了</button>'});
+  }catch(error){
+    if(automatic){notify(`自动行情更新未完成：${error.message}，下轮再试。`,true);}
+    else throw error;
   }finally{setQuoteBusy(false);render();}
 }
 async function lookupSymbol(){
@@ -138,6 +181,9 @@ async function lookupSymbol(){
   setQuoteBusy(true);
   try{
     const response=await desktop.quotes([n.code]);
+    acceptMarketStatus(response.market,!!response.restricted);
+    if(response.restricted)throw new Error('行情接口访问受限，已暂停查询。冷却时间和恢复入口见行情栏。');
+    if(response.deferred)throw new Error(`请等待下次允许查询时间：${marketTime(response.market.nextAllowedAt)}`);
     if($('#modal-form')!==form||input.value!==original)return;
     const q=response.results.find(q=>q.key===n.key);
     if(!q||q.error)throw new Error(q?.error||'暂时没有该代码的有效行情');
@@ -158,7 +204,8 @@ async function lookupSymbol(){
 function render() {
   const titles={overview:['账本总览','让每一档交易，都有清楚的记录。'],grids:['网格计划','设好档位，记录成交，按计划复盘。'],trades:['交易记录','买入、卖出、分红和送转股，完整留痕。'],report:['利润复盘','看清已落袋的收益，也看清仍在持仓中的波动。'],guide:['网格说明','从第一只股票，到第一轮网格交易。'],settings:['账本与备份','你的交易数据，保存在自己的电脑里。']};
   const t=titles[page];
-  $('#app').innerHTML=`<aside class="sidebar"><div class="brand"><div class="brand-symbol"><i></i><i></i><i></i><i></i></div><span>小呆网格<small>人民币交易账本</small></span></div><div class="workspace-label">我的交易空间</div><nav>${[['overview','账本总览'],['grids','网格计划'],['trades','交易记录'],['report','利润复盘']].map(([id,label])=>`<button data-action="navigate" data-page="${id}" class="nav-item ${page===id?'active':''}">${icon(id)}${label}${id==='grids'?`<span class="nav-count">${state.stocks.length}</span>`:''}</button>`).join('')}<div class="nav-divider"></div>${[['guide','网格说明'],['settings','账本与备份']].map(([id,label])=>`<button data-action="navigate" data-page="${id}" class="nav-item ${page===id?'active':''}">${icon(id)}${label}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="local-indicator"><span></span>本地保存 · 人民币账本</div><p>有计划地交易<br>有依据地复盘</p><div class="profile"><div class="profile-avatar">呆</div><span>小呆的交易助手<small>本地账本 · v1.2.1</small></span></div></div></aside><div class="workspace"><header class="topbar"><span><i class="status-dot"></i>${state.isDemo?'演示账本':'我的人民币账本'}<span class="top-divider">/</span>${t[0]}</span><div class="topbar-right"><span>${localNow().slice(0,10).replaceAll('-',' / ')}</span><span class="currency-badge">CNY · 人民币</span><button class="icon-btn" aria-label="导出备份" title="导出完整备份" data-action="backup">${icon('save')}</button><span class="user-badge">呆</span></div></header><main><div class="page-heading"><div><div class="eyebrow">${page==='overview'?'交易工作台 · CNY':'小呆网格 / '+t[0]}</div><h1>${t[0]}</h1><p>${t[1]}</p></div><div class="heading-actions">${page!=='guide'&&page!=='settings'?`${refreshButton()}<button class="btn" data-action="add-stock">${icon('plus')}添加股票</button><button class="btn primary" data-action="add-trade">${icon('plus')}记录成交</button>`:''}</div></div>${state.isDemo?`<div class="demo-banner"><span>${icon('info')}正在体验演示账本，所有股票、行情和成交均为虚拟示例。</span><button data-action="new-ledger">创建我的账本 ${icon('arrow')}</button></div>`:''}${quoteBar()}<div id="page-content">${({overview:overviewPage,grids:gridsPage,trades:tradesPage,report:reportPage,guide:guidePage,settings:settingsPage})[page]()}</div><footer><span>${icon('check')} ${window.desktop?'本机账本':'浏览器账本'} · 自动保存${state.updatedAt?' · '+new Date(state.updatedAt).toLocaleTimeString('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit'}):''}</span><span>行情按需获取 · 档位提示以已保存参考价为准</span></footer></main></div>`;
+  $('#app').innerHTML=`<aside class="sidebar"><div class="brand"><div class="brand-symbol"><i></i><i></i><i></i><i></i></div><span>小呆网格<small>人民币交易账本</small></span></div><div class="workspace-label">我的交易空间</div><nav>${[['overview','账本总览'],['grids','网格计划'],['trades','交易记录'],['report','利润复盘']].map(([id,label])=>`<button data-action="navigate" data-page="${id}" class="nav-item ${page===id?'active':''}">${icon(id)}${label}${id==='grids'?`<span class="nav-count">${state.stocks.length}</span>`:''}</button>`).join('')}<div class="nav-divider"></div>${[['guide','网格说明'],['settings','账本与备份']].map(([id,label])=>`<button data-action="navigate" data-page="${id}" class="nav-item ${page===id?'active':''}">${icon(id)}${label}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="local-indicator"><span></span>本地保存 · 人民币账本</div><p>有计划地交易<br>有依据地复盘</p><div class="profile"><div class="profile-avatar">呆</div><span>小呆的交易助手<small>本地账本 · v1.3.0</small></span></div></div></aside><div class="workspace"><header class="topbar"><span><i class="status-dot"></i>${state.isDemo?'演示账本':'我的人民币账本'}<span class="top-divider">/</span>${t[0]}</span><div class="topbar-right"><span>${localNow().slice(0,10).replaceAll('-',' / ')}</span><span class="currency-badge">CNY · 人民币</span><button class="icon-btn" aria-label="导出备份" title="导出完整备份" data-action="backup">${icon('save')}</button><span class="user-badge">呆</span></div></header><main><div class="page-heading"><div><div class="eyebrow">${page==='overview'?'交易工作台 · CNY':'小呆网格 / '+t[0]}</div><h1>${t[0]}</h1><p>${t[1]}</p></div><div class="heading-actions">${page!=='guide'&&page!=='settings'?`${refreshButton()}<button class="btn" data-action="add-stock">${icon('plus')}添加股票</button><button class="btn primary" data-action="add-trade">${icon('plus')}记录成交</button>`:''}</div></div>${state.isDemo?`<div class="demo-banner"><span>${icon('info')}正在体验演示账本，所有股票、行情和成交均为虚拟示例。</span><button data-action="new-ledger">创建我的账本 ${icon('arrow')}</button></div>`:''}${quoteBar()}<div id="page-content">${({overview:overviewPage,grids:gridsPage,trades:tradesPage,report:reportPage,guide:guidePage,settings:settingsPage})[page]()}</div><footer><span>${icon('check')} ${window.desktop?'本机账本':'浏览器账本'} · 自动保存${state.updatedAt?' · '+new Date(state.updatedAt).toLocaleTimeString('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit'}):''}</span><span>行情按设置更新 · 档位提示以已保存参考价为准</span></footer></main></div>`;
+  autoLoop?.sync();renderAutoStatus();
 }
 function metric(label,value,sub,iconName,cls='',main=false) { return `<div class="metric ${main?'metric-featured':''}"><div class="metric-title">${label}${icon(iconName)}</div><div class="metric-value ${cls}">${value}<small>${label==='已平仓批次'?'笔':'元'}</small></div><div class="metric-sub">${sub}</div></div>`; }
 function overviewPage() {
@@ -196,8 +243,8 @@ function reportPage() {
   const wins=matches.filter(m=>m.profit.gt(0)).length;
   return `<div class="metrics">${metric('已实现交易利润',signed(s.realized),'按卖出对应买入批次核算','cycle',tone(s.realized),true)}${metric('税后分红',cash(s.dividends),'税前分红 − 税费与其他费用','wallet')}${metric('累计全部费用',cash(s.fees),'佣金 + 税费 + 其他费用','trades')}${metric('已平仓批次',String(matches.length),matches.length?`${wins} 笔盈利 · ${matches.length-wins} 笔持平或亏损`:'等待完成第一轮交易','grids')}</div><section class="panel"><div class="panel-head"><div><h2>每只股票的收益账</h2><p>总利润 = 已实现交易利润 + 税后分红 + 持仓浮动盈亏</p></div><button class="btn small" data-action="export-csv">${icon('download')}导出交易明细</button></div>${s.positions.length?`<div class="table-wrap"><table><thead><tr><th>股票</th><th class="num">累计买入支出</th><th class="num">卖出净收入</th><th class="num">剩余成本</th><th class="num">交易利润</th><th class="num">税后分红</th><th class="num">浮动盈亏</th><th class="num">总利润</th></tr></thead><tbody>${s.positions.map(p=>`<tr><td>${stockName(p.stock)}</td><td class="num mono">${cash(p.buys)}</td><td class="num mono">${cash(p.sells)}</td><td class="num mono">${cash(p.basis)}</td><td class="num mono ${tone(p.realized)}">${signed(p.realized)}</td><td class="num mono">${cash(p.dividends)}</td><td class="num mono ${tone(p.unrealized)}">${signed(p.unrealized)}</td><td class="num mono ${tone(p.totalProfit)}">${signed(p.totalProfit)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-inline">添加股票并记录成交后，即可查看利润复盘。</div>'}</section><section class="panel"><div class="panel-head"><div><h2>买卖配对明细</h2><p>指定批次优先；未指定批次按先进先出分摊。分红单独计入总收益。</p></div><span class="tag neutral">费用已分摊</span></div>${matches.length?`<div class="table-wrap"><table><thead><tr><th>股票</th><th>买入 → 卖出时间</th><th>买入档位 → 卖出档位</th><th class="num">已平仓股数</th><th class="num">买入含费成本</th><th class="num">卖出扣费收入</th><th class="num">配对净利润</th></tr></thead><tbody>${matches.map(m=>{const name=id=>m.stock.grid.levels.find(l=>l.id===id)?.label||'未指定';return `<tr><td>${stockName(m.stock)}</td><td class="mono">${esc(m.buyDate.slice(0,10))}<small class="cell-sub">→ ${esc(m.sellDate.slice(0,10))}</small></td><td>${esc(m.buyGridLabel||name(m.buyGrid))}<small class="cell-sub">→ ${esc(m.sellGridLabel||name(m.sellGrid))}</small></td><td class="num mono">${qty(m.quantity)}</td><td class="num mono">${cash(m.cost)}</td><td class="num mono">${cash(m.proceeds)}</td><td class="num mono ${tone(m.profit)}">${signed(m.profit)}</td></tr>`;}).join('')}</tbody></table></div>`:'<div class="empty-inline">记录一笔卖出后，会自动生成对应的买卖配对明细。</div>'}</section>`;
 }
-function guidePage() { return `<section class="guide-hero"><div class="eyebrow">从计划到记录</div><h2>把价格分成格子，<br>把每一次交易记清楚。</h2><p>网格是预先制定的一组价格与股数。价格落到买入档时观察买入机会，上到卖出档时观察卖出机会；实际成交后，再在这里记账。</p><div class="guide-grid-art"><span>11.000 <b>卖出 2 档</b></span><span>10.500 <b>卖出 1 档</b></span><span class="center">10.000 <b>基准档</b></span><span>9.500 <b>买入 1 档</b></span><span>9.000 <b>买入 2 档</b></span></div></section><div class="guide-steps">${[['01','设定股票代码','点击“添加股票”，填写代码和名称。例如代码填写 600000；点击“按代码获取名称和价格”可获取名称、最新成交价与行情时间。'],['02','生成网格档位','输入基准价、间距、上下档数和每档股数，生成后也可逐档修改价格与股数。'],['03','记录买入档位','在网格表点击“记买入”，核对实际成交时间、股数、成交价和费用。计划价与实际成交价分别保存。'],['04','卖出并核对利润','选择对应买入批次，或使用先进先出配对。部分卖出会自动分摊买入和卖出费用。']].map(([n,h,p])=>`<article><span>${n}</span><h3>${h}</h3><p>${p}</p></article>`).join('')}</div><div class="guide-columns"><section class="panel guide-copy"><h2>网格怎样计算？</h2><h3>等差网格 · 每档相差固定金额</h3><p>基准价 10 元，间距 0.5 元：买入 1 档为 9.5 元，买入 2 档为 9 元；卖出 1 档为 10.5 元，卖出 2 档为 11 元。</p><div class="formula">档位价格 = 基准价 + 档数 × 间距</div><h3>等比网格 · 相邻两档按固定倍率</h3><p>基准价 10 元，间距 5%：卖出 1 档为 10.5 元；买入 1 档为 10 ÷ 1.05 ≈ 9.524 元。向下使用除法，以保持相邻档位的倍率相同。</p><div class="formula">档位价格 = 基准价 × (1 + 间距%) ^ 档数</div><p class="muted">自动生成价格保留 3 位小数。实际交易请按该证券最小报价单位填写；每档股数需自行遵循相应交易规则。档位只是价格计划，不限制手动成交。</p></section><section class="panel guide-copy"><h2>成本和利润怎样核算？</h2><h3>每笔买入都有自己的成本</h3><p>买入含费成本 = 成交价 × 股数 + 佣金 + 税费 + 其他费用。卖出时按指定批次或先进先出扣减相应成本。</p><h3>平均持仓成本 ≠ 回本参考价</h3><p>平均持仓成本 = 未平仓买入批次的剩余含费成本 ÷ 剩余股数。回本参考价则进一步考虑累计卖出收入和税后分红，因此可能低于 0，且没有包含未来卖出费用。</p><div class="formula">总利润 = 已实现交易利润 + 税后分红 + 持仓浮动盈亏</div><p>也等于：持仓市值 + 卖出净收入 + 税后分红 − 累计买入含费支出。两种算法在同一账本内核对一致。</p><p class="muted">费用请按券商交割单填写；各笔费用先精确核算，界面金额展示到分，逐行展示的四舍五入可能与合计差 0.01 元。成本为本账本口径。</p></section></div><section class="panel guide-copy"><h2>使用时的几个约定</h2><div class="guide-columns"><div><h3>已有持仓怎么开始？</h3><p>先录入历史买入成交。没有逐笔资料时，可用“期初持仓”备注录入一笔汇总买入，成交价填写原含费总成本 ÷ 股数，费用填 0；此时利润只涵盖录入起点以后的变化。</p><h3>分红和送转股怎么记？</h3><p>分红填写税前金额及红利税。送转股填写股数变动倍率，例如每 10 股转增 3 股填写 1.3；成本总额不变，每股成本相应变化。除权后请重新检查网格与参考价。</p></div><div><h3>参考价与档位状态</h3><p>参考价可以手动填写，也可以点击“刷新全部行情”按股票代码获取。腾讯行情优先，失败后尝试新浪；无需 API Key。软件启动时不自动请求，也不定时轮询。触价只比较已保存参考价与计划价，不代表挂单或成交。</p><h3>行情时间与免费接口</h3><p>显示接口返回的行情时间与来源，请求时间单独保存在账本。非交易日、停牌或接口缓存可能返回较早的成交价；非今日行情会标注。零价格、无效代码、超时或失败均保留原价。免费公开接口可能调整或延迟，不保证持续可用。</p><h3>网格适用边界</h3><p>网格需要预留资金和可卖持仓。连续下跌时可能持续买入并累积亏损，持续上涨时可能提前卖出。软件记录已成交事项，不校验交易日、T+1、可用资金或券商订单。</p></div></div></section>`; }
-function settingsPage() { return `<div class="settings-layout"><section class="panel settings-card"><div class="soft-icon">${icon('save')}</div><h2>账本与数据</h2><p>成交记录自动保存。退出再打开，继续你的计划。行情只在你点击时请求，启动时不自动联网。</p><div class="definition-list"><div><span>当前账本</span><strong>${state.isDemo?'演示账本':'我的人民币账本'}</strong></div><div><span>股票数量 / 记录数量</span><strong>${state.stocks.length} / ${state.trades.length}</strong></div><div><span>记账币种</span><strong>人民币 CNY</strong></div><div><span>成本配对</span><strong>指定买入批次 / 先进先出</strong></div><div><span>数据保存方式</span><strong>${window.desktop?'本机文件 + 最近 30 次自动备份':'当前浏览器存储'}</strong></div></div>${window.desktop?`<div class="data-path">${esc(dataDirectory)}</div><button class="btn" data-action="folder">${icon('folder')}打开数据文件夹</button>`:'<div class="notice amber">浏览器清理数据会影响本账本，请定期导出完整备份。</div>'}</section><section class="panel settings-card"><div class="soft-icon">${icon('download')}</div><h2>备份、恢复与导出</h2><p>完整备份包含股票、档位、参考价和所有成交记录。</p><div class="settings-actions"><button class="btn primary" data-action="backup">${icon('download')}导出完整备份 JSON</button><button class="btn" data-action="export-csv">${icon('trades')}导出全部交易 CSV</button><button class="btn" data-action="import">${icon('folder')}导入备份 / 交易 CSV</button></div><p class="muted">JSON 恢复会替换当前账本，并在确认后生效。CSV 按记录 ID 去重并追加成交；CSV 不包含完整网格设置与参考价，建议同时保留 JSON 备份。股票代码请在表格软件中按文本保留前导零。</p></section><section class="panel settings-card full"><h2>创建空白账本</h2><p>${state.isDemo?'结束体验，从自己的第一只股票开始。':'新建前请先导出完整备份。创建后将清空当前股票、档位和交易记录。'}</p><button class="btn ${state.isDemo?'primary':'danger'}" data-action="new-ledger">${icon('plus')}创建我的空白账本</button></section></div>`; }
+function guidePage() { return `<section class="guide-hero"><div class="eyebrow">从计划到记录</div><h2>把价格分成格子，<br>把每一次交易记清楚。</h2><p>网格是预先制定的一组价格与股数。价格落到买入档时观察买入机会，上到卖出档时观察卖出机会；实际成交后，再在这里记账。</p><div class="guide-grid-art"><span>11.000 <b>卖出 2 档</b></span><span>10.500 <b>卖出 1 档</b></span><span class="center">10.000 <b>基准档</b></span><span>9.500 <b>买入 1 档</b></span><span>9.000 <b>买入 2 档</b></span></div></section><div class="guide-steps">${[['01','设定股票代码','点击“添加股票”，填写代码和名称。例如代码填写 600000；点击“按代码获取名称和价格”可获取名称、最新成交价与行情时间。'],['02','生成网格档位','输入基准价、间距、上下档数和每档股数，生成后也可逐档修改价格与股数。'],['03','记录买入档位','在网格表点击“记买入”，核对实际成交时间、股数、成交价和费用。计划价与实际成交价分别保存。'],['04','卖出并核对利润','选择对应买入批次，或使用先进先出配对。部分卖出会自动分摊买入和卖出费用。']].map(([n,h,p])=>`<article><span>${n}</span><h3>${h}</h3><p>${p}</p></article>`).join('')}</div><div class="guide-columns"><section class="panel guide-copy"><h2>网格怎样计算？</h2><h3>等差网格 · 每档相差固定金额</h3><p>基准价 10 元，间距 0.5 元：买入 1 档为 9.5 元，买入 2 档为 9 元；卖出 1 档为 10.5 元，卖出 2 档为 11 元。</p><div class="formula">档位价格 = 基准价 + 档数 × 间距</div><h3>等比网格 · 相邻两档按固定倍率</h3><p>基准价 10 元，间距 5%：卖出 1 档为 10.5 元；买入 1 档为 10 ÷ 1.05 ≈ 9.524 元。向下使用除法，以保持相邻档位的倍率相同。</p><div class="formula">档位价格 = 基准价 × (1 + 间距%) ^ 档数</div><p class="muted">自动生成价格保留 3 位小数。实际交易请按该证券最小报价单位填写；每档股数需自行遵循相应交易规则。档位只是价格计划，不限制手动成交。</p></section><section class="panel guide-copy"><h2>成本和利润怎样核算？</h2><h3>每笔买入都有自己的成本</h3><p>买入含费成本 = 成交价 × 股数 + 佣金 + 税费 + 其他费用。卖出时按指定批次或先进先出扣减相应成本。</p><h3>平均持仓成本 ≠ 回本参考价</h3><p>平均持仓成本 = 未平仓买入批次的剩余含费成本 ÷ 剩余股数。回本参考价则进一步考虑累计卖出收入和税后分红，因此可能低于 0，且没有包含未来卖出费用。</p><div class="formula">总利润 = 已实现交易利润 + 税后分红 + 持仓浮动盈亏</div><p>也等于：持仓市值 + 卖出净收入 + 税后分红 − 累计买入含费支出。两种算法在同一账本内核对一致。</p><p class="muted">费用请按券商交割单填写；各笔费用先精确核算，界面金额展示到分，逐行展示的四舍五入可能与合计差 0.01 元。成本为本账本口径。</p></section></div><section class="panel guide-copy"><h2>使用时的几个约定</h2><div class="guide-columns"><div><h3>已有持仓怎么开始？</h3><p>先录入历史买入成交。没有逐笔资料时，可用“期初持仓”备注录入一笔汇总买入，成交价填写原含费总成本 ÷ 股数，费用填 0；此时利润只涵盖录入起点以后的变化。</p><h3>分红和送转股怎么记？</h3><p>分红填写税前金额及红利税。送转股填写股数变动倍率，例如每 10 股转增 3 股填写 1.3；成本总额不变，每股成本相应变化。除权后请重新检查网格与参考价。</p></div><div><h3>参考价与档位状态</h3><p>参考价可以手动填写，也可以点击“刷新全部行情”按股票代码获取。腾讯行情优先，失败后尝试新浪；无需 API Key。自动更新默认关闭。开启后仅在北京时间周一至周五 9:30–11:30、13:00–15:00 随机每 60–90 秒更新；午休、收盘和周末暂停。暂未识别法定节假日。触价只比较已保存参考价与计划价，不代表挂单或成交。</p><h3>行情时间与免费接口</h3><p>显示接口返回的行情时间与来源，请求时间单独保存在账本。非交易日、停牌或接口缓存可能返回较早的成交价；非今日行情会标注。零价格、无效代码、超时或失败均保留原价。免费公开接口可能调整或延迟，不保证持续可用。</p><h3>网格适用边界</h3><p>网格需要预留资金和可卖持仓。连续下跌时可能持续买入并累积亏损，持续上涨时可能提前卖出。软件记录已成交事项，不校验交易日、T+1、可用资金或券商订单。</p></div></div></section>`; }
+function settingsPage() { return `<div class="settings-layout"><section class="panel settings-card"><div class="soft-icon">${icon('save')}</div><h2>账本与数据</h2><p>成交记录自动保存。退出再打开，继续你的计划。行情默认手动更新；开启自动更新后，仅在工作日指定时段随机更新，失败时降频，受限时暂停。</p><div class="definition-list"><div><span>当前账本</span><strong>${state.isDemo?'演示账本':'我的人民币账本'}</strong></div><div><span>股票数量 / 记录数量</span><strong>${state.stocks.length} / ${state.trades.length}</strong></div><div><span>记账币种</span><strong>人民币 CNY</strong></div><div><span>成本配对</span><strong>指定买入批次 / 先进先出</strong></div><div><span>数据保存方式</span><strong>${window.desktop?'本机文件 + 最近 30 次自动备份':'当前浏览器存储'}</strong></div></div>${window.desktop?`<div class="data-path">${esc(dataDirectory)}</div><button class="btn" data-action="folder">${icon('folder')}打开数据文件夹</button>`:'<div class="notice amber">浏览器清理数据会影响本账本，请定期导出完整备份。</div>'}</section><section class="panel settings-card"><div class="soft-icon">${icon('download')}</div><h2>备份、恢复与导出</h2><p>完整备份包含股票、档位、参考价和所有成交记录。</p><div class="settings-actions"><button class="btn primary" data-action="backup">${icon('download')}导出完整备份 JSON</button><button class="btn" data-action="export-csv">${icon('trades')}导出全部交易 CSV</button><button class="btn" data-action="import">${icon('folder')}导入备份 / 交易 CSV</button></div><p class="muted">JSON 恢复会替换当前账本，并在确认后生效。CSV 按记录 ID 去重并追加成交；CSV 不包含完整网格设置与参考价，建议同时保留 JSON 备份。股票代码请在表格软件中按文本保留前导零。</p></section><section class="panel settings-card full"><h2>创建空白账本</h2><p>${state.isDemo?'结束体验，从自己的第一只股票开始。':'新建前请先导出完整备份。创建后将清空当前股票、档位和交易记录。'}</p><button class="btn ${state.isDemo?'primary':'danger'}" data-action="new-ledger">${icon('plus')}创建我的空白账本</button></section></div>`; }
 function openModal({title,subtitle='',body,form='',large=false,buttons=''}) {
   closeModal(); modalKind=form;draftQuote=null;
   $('#modal-root').innerHTML=`<dialog id="main-dialog" class="modal ${large?'modal-large':''}" aria-labelledby="dialog-title"><form id="modal-form" data-form="${form}"><div class="modal-head"><div><h2 id="dialog-title">${esc(title)}</h2>${subtitle?`<p>${esc(subtitle)}</p>`:''}</div><button type="button" class="icon-btn" data-action="close-modal" aria-label="关闭">${icon('close')}</button></div><div class="modal-body">${body}<div id="form-error" class="form-error" role="alert" hidden></div></div><div class="modal-footer">${buttons||`<button type="button" class="btn" data-action="close-modal">取消</button><button type="submit" class="btn primary">${icon('check')}保存</button>`}</div></form></dialog>`;
@@ -271,6 +318,9 @@ document.addEventListener('click',async event=>{
   if(saving){notify('正在保存，请稍候');return;}
   if(quoteBusy&&!['navigate','select-stock','close-modal'].includes(a)){notify('正在获取行情，请稍候');return;}
   try {
+    if(a==='resume-market'){
+      acceptMarketStatus(await desktop.resumeMarket());lastRestrictionNotice='';render();notify('已恢复行情查询；自动更新将重新等待随机间隔。');
+    }
     if(a==='refresh-all')await refreshQuotes();
     if(a==='refresh-one')await refreshQuotes(id);
     if(a==='lookup-symbol')await lookupSymbol();
@@ -323,10 +373,15 @@ document.addEventListener('submit',async event=>{
     if(form==='quote') {E.numeric(f.quote,'参考价',true);const s=next.stocks.find(s=>s.id===f.id);s.quote=f.quote;s.quoteAt=f.quoteAt;delete s.quoteMeta;await commit(next);closeModal();notify('参考价已更新');}
   }catch(e){showFormError(e);}
 });
-document.addEventListener('change',event=>{
+document.addEventListener('change',async event=>{
   const target=event.target,a=target.dataset.change;
   if(!a)return;
   try {
+    if(a==='auto-quotes'){
+      try{acceptMarketStatus(await desktop.configureMarket(target.checked));render();}
+      catch(error){renderAutoStatus();throw error;}
+      return;
+    }
     if(modalKind==='stock'&&target.name==='mode')$('#modal-form').dataset.gridEdited='true';
     if(a.startsWith('filter-')) {filters[a.slice(7)]=target.value;render();}
     if(a==='trade-type'||a==='trade-stock'||a==='trade-date') {const f=formObject();if(a==='trade-stock'){f.gridLevel='';f.buyTradeId='';f.price='';}tradeModal(f.stockId,f.type,{id:f.id,draft:f});}
@@ -347,8 +402,15 @@ $('#file-import').addEventListener('change',async event=>{
 });
 (async()=>{
   try {
-    if(window.desktop){const loaded=await desktop.load();state=loaded.state;dataDirectory=loaded.dataDirectory;}
+    if(window.desktop){const loaded=await desktop.load();state=loaded.state;dataDirectory=loaded.dataDirectory;marketStatus=loaded.market||marketStatus;}
     else {const raw=localStorage.getItem('xiaodai-grid-ledger-v1');state=raw?JSON.parse(raw):null;}
     if(!state){state={...blankState(),revision:0};await commit(demoState());}else{E.validateState(state);render();}
+    if(window.desktop?.configureMarket){
+      autoLoop=new AutoQuotes.Loop({getStatus:()=>marketStatus,isEligible:()=>!state.isDemo&&state.stocks.some(s=>supportedStock(s)),isReady:()=>!quoteBusy&&!saving&&!$('#main-dialog'),refresh:()=>refreshQuotes('',true),onChange:renderAutoStatus});
+      autoLoop.sync();
+      window.addEventListener('focus',()=>autoLoop.sync());
+      window.addEventListener('beforeunload',()=>autoLoop.stop());
+      acceptMarketStatus(marketStatus,true);
+    }
   }catch(e){$('#app').innerHTML=`<div class="load-error"><h1>账本暂时无法打开</h1><p>${esc(e.message)}</p><p>为保留原始数据，软件没有覆盖账本。请从数据文件夹的 backups 中找回最近备份。</p>${window.desktop?'<button class="btn" data-action="folder">打开数据文件夹</button>':''}</div>`;}
 })();
