@@ -10,7 +10,7 @@
 
 ## 下载与打开
 
-1. 在 [Releases](https://github.com/CroTuyuzhe/xiaodai-stock-grid/releases) 下载 `XiaodaiGrid-v1.3.0-Windows-x64.zip`。
+1. 在 [Releases](https://github.com/CroTuyuzhe/xiaodai-stock-grid/releases) 下载 `XiaodaiGrid-v1.3.1-Windows-x64.zip`。
 2. 将压缩包完整解压到一个文件夹，双击 `XiaodaiGrid.exe`。无需安装 Node.js，请保留同目录配套文件。
 3. 初次打开显示**虚拟演示账本**。点击“创建我的账本”后，添加自己的证券代码、网格和实际成交。
 
@@ -83,11 +83,12 @@ npm.cmd run test:delete-ui
 npm.cmd run test:visual
 npm.cmd run test:quotes-ui
 npm.cmd run test:auto-ui
+npm.cmd run test:auto-native
 npm.cmd run package
 python scripts/archive.py
 ```
 
-`test:quotes-ui` 会实际请求公开行情接口，需要联网；闭市、非交易日或数据缓存可能影响对“今日行情”的断言。其余桌面检查使用隔离的临时账本和缓存；`test:auto-ui` 使用模拟时间和行情验证完整自动更新流程。
+`test:quotes-ui` 会实际请求公开行情接口，需要联网；闭市、非交易日或数据缓存可能影响对“今日行情”的断言。其余桌面检查使用隔离的临时账本和缓存；`test:auto-ui` 使用模拟时间和行情验证完整自动更新流程；`test:auto-native` 保留浏览器原生计时器，检查开关、重启和最小化后真实等待 60 秒的刷新（行情模拟，不请求外网）。
 
 | 路径 | 内容 |
 | --- | --- |
@@ -97,6 +98,10 @@ python scripts/archive.py
 | `storage.cjs` | 本地账本保存与自动备份 |
 | `market-quotes.cjs` | 用户主动触发的行情查询 |
 | `tests/` / `scripts/` | 自动测试、桌面检查和打包 |
+
+## v1.3.1
+
+修复打开自动更新开关时的 `Illegal invocation` 报错，以及关闭和重启时相同的计时器调用问题。新增原生计时器桌面回归检查。
 
 ## v1.3.0
 

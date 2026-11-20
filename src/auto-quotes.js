@@ -23,7 +23,8 @@
     return isTradingTime(candidate)?candidate:nextSession(candidate)+randomDelay(random);
   }
   class Loop {
-    constructor({getStatus,isEligible,isReady=()=>true,refresh,onChange=()=>{},now=()=>Date.now(),random=Math.random,setTimer=setTimeout,clearTimer=clearTimeout}){
+    // Native Window timers require their host receiver, even when stored on a Loop.
+    constructor({getStatus,isEligible,isReady=()=>true,refresh,onChange=()=>{},now=()=>Date.now(),random=Math.random,setTimer=(callback,delay)=>globalThis.setTimeout(callback,delay),clearTimer=timer=>globalThis.clearTimeout(timer)}){
       Object.assign(this,{getStatus,isEligible,isReady,refresh,onChange,now,random,setTimer,clearTimer});
       this.timer=null;this.nextAt=0;this.running=false;this.mode='off';
     }

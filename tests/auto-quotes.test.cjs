@@ -28,3 +28,24 @@ test('429 cooldown survives toggles and requires manual resume after expiry',asy
 test('automatic fallback stops at session close',async()=>{let clock=time('11:29:59'),calls=0;const s=new MarketQuoteService({now:()=>new Date(clock),preferences:{...defaults(),autoEnabled:true},request:async()=>{calls++;clock=time('11:30:01');throw new Error('timeout');}});const r=await s.fetch(['512480'],{automatic:true});assert.equal(calls,1);assert.ok(r.results[0].error);});
 test('separate preferences persist opt-in and restriction without ledger contents',async()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'grid-market-settings-'));try{const prefs=new MarketPreferences(dir);assert.deepEqual(prefs.load(),defaults());const h=service({preferences:prefs.load(),persist:next=>prefs.save(next),request:async()=>{throw httpError(403,{},time('10:00:00'));}});h.s.configure(true);h.setTime(time('10:02:00'));await h.s.fetch(['512480']);const saved=prefs.load();assert.equal(saved.autoEnabled,true);assert.equal(saved.restriction.statusCode,403);assert.deepEqual(fs.readdirSync(dir),['market-preferences.json']);const restarted=service({preferences:saved});assert.ok((await restarted.s.fetch(['512480'])).restricted);assert.equal(restarted.calls.length,0);fs.writeFileSync(prefs.file,'invalid');assert.throws(()=>prefs.load(),/已停止行情/);}finally{fs.rmSync(dir,{recursive:true,force:true});}});
 test('malformed restriction is never silently discarded',()=>{assert.throws(()=>normalize({autoEnabled:true,restriction:{statusCode:429}}),/受限记录无效/);});
+
+test('default timers retain the browser host receiver when scheduling and clearing',()=>{
+ const vm=require('node:vm');
+ const browser=vm.createContext({assert});
+ vm.runInContext(`
+  let scheduled=0,canceled=0;
+  globalThis.setTimeout=function(callback,delay){assert.equal(this,globalThis);assert.equal(typeof callback,'function');assert.equal(delay,60000);return ++scheduled;};
+  globalThis.clearTimeout=function(timer){assert.equal(this,globalThis);assert.equal(timer,scheduled);canceled++;};
+ `,browser);
+ vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/auto-quotes.js'),'utf8'),browser);
+ vm.runInContext(`
+  const now=Date.parse('2026-11-20T10:00:00+08:00');
+  const status={autoEnabled:true};
+  const loop=new AutoQuotes.Loop({getStatus:()=>status,isEligible:()=>true,refresh:async()=>{},now:()=>now,random:()=>0});
+  loop.sync();assert.equal(scheduled,1);assert.equal(canceled,0);
+  loop.sync();assert.equal(scheduled,2);assert.equal(canceled,1);
+  status.autoEnabled=false;loop.sync();assert.equal(scheduled,2);assert.equal(canceled,2);assert.equal(loop.timer,null);
+  status.autoEnabled=true;loop.sync();assert.equal(scheduled,3);
+  loop.stop();loop.stop();assert.equal(canceled,3);assert.equal(loop.timer,null);
+ `,browser);
+});
