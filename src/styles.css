@@ -2143,3 +2143,25 @@ dialog::backdrop { background: #263b5c55; }
 .auto-market-foot small { font-size: 13px; color: #62758e; }
 .auto-market-warning { background: #fff8ec; border-color: #edce96; }
 .auto-market-warning .auto-market-status { color: #895314; }
+/* Price alerts share the light trading workspace without nesting panels. */
+.alert-workspace { display:grid; gap:22px; }
+.alert-notice { padding:16px 18px; border:1px solid #dce7f2; background:#f6f9fd; color:#49627f; font-size:15px; line-height:1.6; border-radius:8px; }
+.alert-section { border-top:1px solid #dce5f0; padding:20px 0 4px; }
+.alert-section .panel-head { padding:0 0 17px; align-items:center; gap:16px; }
+.alert-section h2 { font-size:19px; color:#345576; }
+.alert-section .panel-head p { font-size:14px; color:#5b7088; }
+.alert-filters { display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 16px; }
+.alert-check { color:#536c88; background:#f6f9fc; padding:12px 16px; margin-bottom:6px; border-left:3px solid #65a9a0; font-size:14px; }
+.alert-item { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 4px; border-bottom:1px solid #e2e9f2; }
+.alert-item.alert-unread { background:#f5faff; border-left:3px solid #419abc; padding-left:12px; }
+.alert-item > div:first-child { min-width:0; }
+.alert-item strong { color:#294b6a; font-size:16px; margin-right:10px; }
+.alert-item small { display:block; color:#60758c; font-size:13px; line-height:1.55; }
+.alert-item .alert-delivery { color:#7a6071; }
+.alert-target { font-size:16px; color:#226a65; font-weight:600; margin:5px 0; }
+.alert-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; flex-shrink:0; }
+.alert-actions .icon-btn { color:#a8495b; font-size:25px; }
+.alert-enabled { display:flex; gap:10px; align-items:center; margin:14px 0; color:#395877; font-size:15px; }
+.alert-enabled input { width:19px; height:19px; }
+@media(max-width:1100px) { .alert-item { align-items:flex-start; flex-direction:column; } .alert-actions { flex-shrink:1; } }
+@media(max-width:700px) { .alert-section .panel-head { align-items:flex-start; flex-direction:column; } .alert-section .inline-actions { flex-wrap:wrap; } }

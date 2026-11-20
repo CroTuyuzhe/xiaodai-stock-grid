@@ -15,11 +15,11 @@ const E=require('../src/engine.js');
  const count=()=>app.evaluate(()=>global.__nativeQuoteCalls);
  const launch=async()=>{
   app=await electron.launch({executablePath:process.env.GRID_TEST_EXE||require('electron'),args:[...(process.env.GRID_TEST_EXE?[]:[root]),'--user-data-dir='+path.join(dir,'profile')],env:{...process.env,XIAODAI_GRID_DATA_DIR:dir}});
-  await app.evaluate(({app},time)=>{
+  await app.evaluate(({app,BrowserWindow},time)=>{
    const started=Date.now();global.__nativeQuoteCalls=0;
    const require=process.getBuiltinModule('module').createRequire(app.getAppPath()+'/main.cjs');
    const {MarketQuoteService}=require('./market-quotes.cjs');
-   for(const key of ['configure','resume','fetch']){const original=MarketQuoteService.prototype[key];MarketQuoteService.prototype[key]=function(...args){this.now=()=>new Date(time+Date.now()-started);this.random=()=>0;return original.apply(this,args);};}
+   for(const key of ['configure','resume','fetch']){const original=MarketQuoteService.prototype[key];MarketQuoteService.prototype[key]=function(...args){this.now=()=>new Date(time+Date.now()-started);this.random=()=>0;if(key==='fetch')global.__minimizedAtFetch=BrowserWindow.getAllWindows()[0].isMinimized();return original.apply(this,args);};}
    const https=process.getBuiltinModule('https'),{EventEmitter}=process.getBuiltinModule('events');
    https.get=(options,callback)=>{
     global.__nativeQuoteCalls++;const req=new EventEmitter();req.destroy=()=>{};
@@ -67,9 +67,10 @@ const E=require('../src/engine.js');
   await launch();await expect(page.getByRole('switch',{name:'自动更新行情'})).toBeChecked();await healthy();assert.equal(await count(),0);
   console.log('PASS: original Chromium timers, enable/disable/repeated toggles, persisted enabled restart. Waiting for one real 60-second scheduled round.');
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].minimize());
+  assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isMinimized()),true);
   await expect.poll(()=>count(),{timeout:75000,intervals:[1000]}).toBe(1);
   await expect.poll(()=>read().stocks[0].quote).toBe('0.793');
-  assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isMinimized()),true);
+  assert.equal(await app.evaluate(()=>global.__minimizedAtFetch),true);
   await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].restore());await healthy();
   await page.getByRole('switch',{name:'自动更新行情'}).uncheck();await expect.poll(()=>prefs().autoEnabled).toBe(false);
   assert.deepEqual(read().stocks[0].grid,grid);assert.deepEqual(read().trades,[]);assert.deepEqual(errors,[]);
