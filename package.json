@@ -1,6 +1,6 @@
 {
   "name": "xiaodai-stock-grid",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "小呆网格 - 人民币股票网格交易记账软件",
   "main": "main.cjs",
   "author": "Xiaodai",

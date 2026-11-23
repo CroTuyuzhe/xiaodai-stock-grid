@@ -16,6 +16,8 @@ if (!instance) app.quit();
 else {
   app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } });
   app.whenReady().then(() => {
+    try { registerWindowsShortcut({app,shell,path,fs}); }
+    catch (error) { console.warn('无法更新开始菜单快捷方式：',error.message); }
     const dataDirectory = process.env.XIAODAI_GRID_DATA_DIR || path.join(app.getPath('userData'), 'data');
     store = new LedgerStore(dataDirectory);
     priceAlerts=new PriceAlertStore(dataDirectory);

@@ -10,7 +10,7 @@
 
 ## 下载与打开
 
-1. 在 [Releases](https://github.com/CroTuyuzhe/xiaodai-stock-grid/releases) 下载 `XiaodaiGrid-v1.4.1-Windows-x64.zip`。
+1. 在 [Releases](https://github.com/CroTuyuzhe/xiaodai-stock-grid/releases) 下载 `XiaodaiGrid-v1.4.2-Windows-x64.zip`。
 2. 将压缩包完整解压到一个文件夹，双击 `XiaodaiGrid.exe`。无需安装 Node.js，请保留同目录配套文件。
 3. 初次打开显示**虚拟演示账本**。点击“创建我的账本”后，添加自己的证券代码、网格和实际成交。
 
@@ -101,6 +101,10 @@ python scripts/archive.py
 | `storage.cjs` | 本地账本保存与自动备份 |
 | `market-quotes.cjs` | 用户主动触发的行情查询 |
 | `tests/` / `scripts/` | 自动测试、桌面检查和打包 |
+
+## v1.4.2
+
+修复升级后 Windows 任务栏可能仍使用旧版快捷方式图标：打包版启动时校正应用的开始菜单快捷方式和图标。若之前把旧版入口固定在任务栏，请先取消固定，退出旧版，从新版 `XiaodaiGrid.exe` 打开后再固定；已有桌面快捷方式若仍指向旧版，也需重新创建。
 
 ## v1.4.1
 

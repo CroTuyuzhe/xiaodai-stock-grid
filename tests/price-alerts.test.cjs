@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {PriceAlertStore}=require('../price-alerts.cjs');
-const {PriceNotifications}=require('../price-notifications.cjs');
+const {PriceNotifications,registerWindowsShortcut,APP_ID}=require('../price-notifications.cjs');
 const {EventEmitter}=require('node:events');
 const stock={id:'demo-stock',symbol:'512480',name:'测试 ETF',quote:'0.8',quoteMeta:null},ledger={stocks:[stock],trades:[]};
 const at=Date.parse('2026-11-20T02:00:00Z');
@@ -62,4 +62,22 @@ test('a delayed notification failure overrides submitted, never read status',t=>
  alerts.delivery([event.id],'submitted');alerts.delivery([event.id],'failed','Windows 拒绝通知');
  assert.equal(alerts.snapshot().events[0].delivery,'failed');
  assert.equal(alerts.snapshot().events[0].readAt,null);
+});
+test('packaged startup refreshes the Start Menu shortcut with the current executable icon',()=>{
+ if(process.platform!=='win32')return;
+ const old=process.env.XIAODAI_GRID_DATA_DIR;
+ delete process.env.XIAODAI_GRID_DATA_DIR;
+ try{
+  const calls=[];
+  const app={isPackaged:true,getPath:()=>path.join('test','appdata')};
+  const shell={writeShortcutLink:(...args)=>{calls.push(args);return true;}};
+  registerWindowsShortcut({app,shell,path,fs:{existsSync:()=>true}});
+  assert.equal(calls.length,1);
+  const [link,mode,options]=calls[0];
+  assert.equal(link,path.join('test','appdata','Microsoft','Windows','Start Menu','Programs','小呆网格.lnk'));
+  assert.equal(mode,'update');
+  assert.equal(options.target,process.execPath);
+  assert.equal(options.icon,process.execPath);
+  assert.equal(options.appUserModelId,APP_ID);
+ }finally{if(old===undefined)delete process.env.XIAODAI_GRID_DATA_DIR;else process.env.XIAODAI_GRID_DATA_DIR=old;}
 });
