@@ -10,7 +10,7 @@
 
 ## 下载与打开
 
-1. 在 [Releases](https://github.com/CroTuyuzhe/xiaodai-stock-grid/releases) 下载 `XiaodaiGrid-v1.4.0-Windows-x64.zip`。
+1. 在 [Releases](https://github.com/CroTuyuzhe/xiaodai-stock-grid/releases) 下载 `XiaodaiGrid-v1.4.1-Windows-x64.zip`。
 2. 将压缩包完整解压到一个文件夹，双击 `XiaodaiGrid.exe`。无需安装 Node.js，请保留同目录配套文件。
 3. 初次打开显示**虚拟演示账本**。点击“创建我的账本”后，添加自己的证券代码、网格和实际成交。
 
@@ -29,6 +29,8 @@
 | 账本备份 | 本地自动保存、最近 30 个历史版本、完整 JSON 备份恢复、CSV 明细导入导出 |
 | 股票删除 | 总览、网格页和设置窗口均提供入口；有历史记录时显示原因并可跳转查看 |
 | 网格说明 | 软件内置公式、档位例子、期初持仓、分红、送转股和成本口径说明 |
+
+应用图标采用用户提供的股票走势标识，显示在 Windows 程序、窗口、侧栏与页面标签中。
 
 ![虚拟证券的网格计划与买卖档位](docs/images/grid.png)
 
@@ -99,6 +101,10 @@ python scripts/archive.py
 | `storage.cjs` | 本地账本保存与自动备份 |
 | `market-quotes.cjs` | 用户主动触发的行情查询 |
 | `tests/` / `scripts/` | 自动测试、桌面检查和打包 |
+
+## v1.4.1
+
+更新应用图标，保留 Windows 多尺寸图标与原始透明 PNG；交易和提醒功能不变。旧版本请先退出，再完整解压新版到新文件夹运行，原本机账本和提醒不受影响。
 
 ## v1.4.0
 

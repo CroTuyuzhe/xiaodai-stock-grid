@@ -67,19 +67,10 @@ button:active {
 .brand-symbol {
   width:35px;
   height:35px;
-  display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:4px;
-  transform:rotate(-7deg)}
+  flex-shrink:0;
+  background:url('../assets/icon.png') center / contain no-repeat}
 .brand-symbol i {
-  background:#7588ff;
-  border-radius:4px}
-.brand-symbol i:nth-child(2) {
-  background:#b6c1ff}
-.brand-symbol i:nth-child(3) {
-  background:#4f65e4}
-.brand-symbol i:nth-child(4) {
-  background:#899aff}
+  display:none}
 .workspace-label {
   font-size:13px;
   padding:0 28px 16px;
@@ -1801,11 +1792,7 @@ h1, h2, h3, p { overflow-wrap: break-word; }
 }
 .brand { padding: 30px 22px 34px; gap: 12px; font-size: 23px; color: #203657; font-weight: 700; letter-spacing: .5px; }
 .brand small { margin-top: 4px; font-size: 13px; font-weight: 400; letter-spacing: 0; color: #60728b; }
-.brand-symbol { width: 34px; height: 34px; transform: none; flex-shrink: 0; }
-.brand-symbol i { background: #2468df; }
-.brand-symbol i:nth-child(2) { background: #a5c6fa; }
-.brand-symbol i:nth-child(3) { background: #84b0f4; }
-.brand-symbol i:nth-child(4) { background: #4385e8; }
+.brand-symbol { width: 34px; height: 34px; }
 .workspace-label { padding: 0 24px 14px; color: #60728b; font-size: 13px; letter-spacing: 0; }
 nav { padding: 0 14px; }
 .nav-item { min-height: 48px; padding: 12px 14px; gap: 12px; border: 1px solid transparent; border-radius: 9px; color: #53647d; font-size: 15px; font-weight: 500; }

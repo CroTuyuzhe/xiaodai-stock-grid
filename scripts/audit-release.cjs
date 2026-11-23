@@ -6,7 +6,7 @@ async function audit(){
  const paths=asar.listPackage(archive).map(p=>p.replaceAll('\\','/').replace(/^\//,''));
  const forbidden=paths.filter(p=>p.split('/').some(x=>['.git','data','backups','exports','profile','user-data','tests','scripts','screenshots'].includes(x))||/^(ledger.*\.(json|csv)|market-preferences\.json|price-alerts\.json|\.env(?:\..*)?)$/.test(path.posix.basename(p)));
  assert.deepEqual(forbidden,[],'Private or development files in application archive');
- for(const name of ['main.cjs','preload.cjs','market-quotes.cjs','market-preferences.cjs','price-alerts.cjs','price-notifications.cjs','src/auto-quotes.js','src/alerts-ui.js','src/app.js','src/styles.css','src/engine.js']){
+ for(const name of ['main.cjs','preload.cjs','market-quotes.cjs','market-preferences.cjs','price-alerts.cjs','price-notifications.cjs','src/auto-quotes.js','src/alerts-ui.js','src/app.js','src/styles.css','src/index.html','src/engine.js','assets/icon.png','assets/icon.ico']){
   assert.deepEqual(asar.extractFile(archive,name),fs.readFileSync(path.join(root,name)),name+' packaged content mismatch');
  }
  const pkg=JSON.parse(asar.extractFile(archive,'package.json'));assert.equal(pkg.version,version);
